@@ -3,9 +3,13 @@ import time
 import traceback
 
 import conans.tools
-from conans.errors import ConanException, ConanConnectionError, NotFoundException, \
-    AuthenticationException
-from conans.util.files import save_append, sha1sum, exception_message_safe, to_file_bytes, mkdir
+from conans.errors import (
+    ConanException, ConanConnectionError, NotFoundException,
+    AuthenticationException)
+from conans.util.files import (
+    save_append, sha256sum, sha1sum, md5sum, exception_message_safe,
+    to_file_bytes, mkdir,
+)
 from conans.util.log import logger
 from conans.util.tracer import log_download
 
@@ -18,13 +22,24 @@ class Uploader(object):
         self.requester = requester
         self.verify = verify
 
-    def upload(self, url, abs_path, auth=None, dedup=False, retry=1, retry_wait=0, headers=None):
+    def upload(self, url, abs_path, auth=None, dedup=False, retry=1,
+               retry_wait=0, headers=None):
         if dedup:
-            dedup_headers = {"X-Checksum-Deploy": "true", "X-Checksum-Sha1": sha1sum(abs_path)}
+            dedup_headers = {
+                "X-Checksum-Deploy": "true",
+                "X-Checksum-Sha256": sha256sum(abs_path),
+                "X-Checksum-Sha1": sha1sum(abs_path),
+                "X-Checksum-MD5": md5sum(abs_path),
+            }
             if headers:
                 dedup_headers.update(headers)
-            response = self.requester.put(url, data="", verify=self.verify, headers=dedup_headers,
-                                          auth=auth)
+            response = self.requester.put(
+                url,
+                data="",
+                verify=self.verify,
+                headers=dedup_headers,
+                auth=auth,
+            )
             if response.status_code != 404:
                 return response
 

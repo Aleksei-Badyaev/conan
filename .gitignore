@@ -102,3 +102,6 @@ cacert.pem
 
 # add excluded
 !conans/client/build
+
+# VS Code
+.vscode/

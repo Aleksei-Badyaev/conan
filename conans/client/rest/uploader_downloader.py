@@ -29,7 +29,7 @@ class Uploader(object):
                 "X-Checksum-Deploy": "true",
                 "X-Checksum-Sha256": sha256sum(abs_path),
                 "X-Checksum-Sha1": sha1sum(abs_path),
-                "X-Checksum-MD5": md5sum(abs_path),
+                "X-Checksum-Md5": md5sum(abs_path),
             }
             if headers:
                 dedup_headers.update(headers)

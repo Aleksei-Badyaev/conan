@@ -1,12 +1,11 @@
-import fasteners
 import os
+
+import fasteners
 
 from conans.client.tools.env import no_op
 from conans.errors import NotFoundException
-from conans.server.store.server_store_revisions import REVISIONS_FILE
-from conans.util.files import relative_dirs, rmdir, md5sum, decode_text
-from conans.util.files import path_exists
-from conans.paths import SimplePaths
+from conans.server.store.server_store import REVISIONS_FILE
+from conans.util.files import decode_text, md5sum, path_exists, relative_dirs, rmdir
 
 
 class ServerDiskAdapter(object):
@@ -58,15 +57,23 @@ class ServerDiskAdapter(object):
 
         return ret
 
-    def get_snapshot(self, absolute_path="", files_subset=None):
-        """returns a dict with the filepaths and md5"""
+    def _get_paths(self, absolute_path, files_subset):
         if not path_exists(absolute_path, self._store_folder):
             raise NotFoundException("")
         paths = relative_dirs(absolute_path)
         if files_subset is not None:
             paths = set(paths).intersection(set(files_subset))
         abs_paths = [os.path.join(absolute_path, relpath) for relpath in paths]
+        return abs_paths
+
+    def get_snapshot(self, absolute_path="", files_subset=None):
+        """returns a dict with the filepaths and md5"""
+        abs_paths = self._get_paths(absolute_path, files_subset)
         return {filepath: md5sum(filepath) for filepath in abs_paths}
+
+    def get_file_list(self, absolute_path="", files_subset=None):
+        abs_paths = self._get_paths(absolute_path, files_subset)
+        return abs_paths
 
     def delete_folder(self, path):
         '''Delete folder from disk. Path already contains base dir'''
@@ -79,22 +86,6 @@ class ServerDiskAdapter(object):
         if not path_exists(path, self._store_folder):
             raise NotFoundException("")
         os.remove(path)
-
-    def delete_empty_dirs(self, deleted_refs):
-        paths = SimplePaths(self._store_folder)
-        lock_files = set([REVISIONS_FILE, "%s.lock" % REVISIONS_FILE])
-        for ref in deleted_refs:
-            ref_path = paths.conan(ref)
-            for _ in range(4 if not ref.revision else 5):
-                if os.path.exists(ref_path):
-                    if set(os.listdir(ref_path)) == lock_files:
-                        for lock_file in lock_files:
-                            os.unlink(os.path.join(ref_path, lock_file))
-                    try:  # Take advantage that os.rmdir does not delete non-empty dirs
-                        os.rmdir(ref_path)
-                    except OSError:
-                        break  # not empty
-                ref_path = os.path.dirname(ref_path)
 
     def path_exists(self, path):
         return os.path.exists(path)

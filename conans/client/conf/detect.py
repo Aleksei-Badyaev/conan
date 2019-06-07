@@ -1,11 +1,12 @@
 import os
 import platform
 import re
-from subprocess import Popen, PIPE, STDOUT
+from subprocess import PIPE, Popen, STDOUT
 
 from conans.client.output import Color
+from conans.client.tools.win import latest_visual_studio_version_installed
+from conans.client.tools import detected_os, OSInfo
 from conans.model.version import Version
-from conans.tools import vs_installation_path
 
 
 def _execute(command):
@@ -48,7 +49,7 @@ def _gcc_compiler(output, compiler_exe="gcc"):
                 output.info("gcc>=5, using the major as version")
                 installed_version = major
             return compiler, installed_version
-    except:
+    except Exception:
         return None
 
 
@@ -64,80 +65,13 @@ def _clang_compiler(output, compiler_exe="clang"):
         installed_version = re.search("([0-9]+\.[0-9])", out).group()
         if installed_version:
             output.success("Found %s %s" % (compiler, installed_version))
+            major = installed_version.split(".")[0]
+            if int(major) >= 8 and compiler == "clang":
+                output.info("clang>=8, using the major as version")
+                installed_version = major
             return compiler, installed_version
-    except:
+    except Exception:
         return None
-
-
-def _visual_compiler_cygwin(output, version):
-    if os.path.isfile("/proc/registry/HKEY_LOCAL_MACHINE/SOFTWARE/Microsoft/Windows/CurrentVersion/ProgramFilesDir (x86)"):
-        is_64bits = True
-    else:
-        is_64bits = False
-
-    if is_64bits:
-        key_name = r'HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\VisualStudio\SxS\VC7'
-    else:
-        key_name = r'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\SxS\VC7'
-
-    if not os.path.isfile("/proc/registry/" + key_name.replace('\\', '/') + "/" + version):
-        return None
-
-    installed_version = Version(version).major(fill=False)
-    compiler = "Visual Studio"
-    output.success("CYGWIN: Found %s %s" % (compiler, installed_version))
-    return compiler, installed_version
-
-
-def _visual_compiler(output, version):
-    'version have to be 8.0, or 9.0 or... anything .0'
-    if platform.system().startswith("CYGWIN"):
-        return _visual_compiler_cygwin(output, version)
-
-    if version == "15":
-        vs_path = os.getenv('vs150comntools')
-        path = vs_path or vs_installation_path("15")
-        if path:
-            compiler = "Visual Studio"
-            output.success("Found %s %s" % (compiler, "15"))
-            return compiler, "15"
-        return None
-
-    version = "%s.0" % version
-    from six.moves import winreg  # @UnresolvedImport
-    try:
-        hKey = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                              r"SOFTWARE\Microsoft\Windows\CurrentVersion")
-        winreg.QueryValueEx(hKey, "ProgramFilesDir (x86)")
-        is_64bits = True
-    except EnvironmentError:
-        is_64bits = False
-    finally:
-        winreg.CloseKey(hKey)
-
-    if is_64bits:
-        key_name = r'SOFTWARE\Wow6432Node\Microsoft\VisualStudio\SxS\VC7'
-    else:
-        key_name = r'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\SxS\VC7'
-
-    try:
-        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_name)
-        winreg.QueryValueEx(key, version)
-
-        installed_version = Version(version).major(fill=False)
-        compiler = "Visual Studio"
-        output.success("Found %s %s" % (compiler, installed_version))
-        return compiler, installed_version
-    except EnvironmentError:
-        return None
-
-
-def _visual_compiler_last(output):
-    last_version = None
-    for version in ["8", "9", "10", "11", "12", "14", "15"]:
-        vs = _visual_compiler(output, version)
-        last_version = vs or last_version
-    return last_version
 
 
 def _sun_cc_compiler(output, compiler_exe="cc"):
@@ -148,7 +82,7 @@ def _sun_cc_compiler(output, compiler_exe="cc"):
         if installed_version:
             output.success("Found %s %s" % (compiler, installed_version))
             return compiler, installed_version
-    except:
+    except Exception:
         return None
 
 
@@ -174,7 +108,8 @@ def _get_default_compiler(output):
         return None
 
     if detected_os() == "Windows":
-        vs = _visual_compiler_last(output)
+        version = latest_visual_studio_version_installed(output)
+        vs = ('Visual Studio', version) if version else None
     gcc = _gcc_compiler(output)
     clang = _clang_compiler(output)
     if platform.system() == "SunOS":
@@ -190,10 +125,10 @@ def _get_default_compiler(output):
         return gcc or clang
 
 
-def _detect_compiler_version(result, output):
+def _detect_compiler_version(result, output, profile_path):
     try:
         compiler, version = _get_default_compiler(output)
-    except:
+    except Exception:
         compiler, version = None, None
     if not compiler or not version:
         output.error("Unable to find a working compiler")
@@ -205,18 +140,18 @@ def _detect_compiler_version(result, output):
         elif compiler == "gcc":
             result.append(("compiler.libcxx", "libstdc++"))
             if Version(version) >= Version("5.1"):
-
+                profile_name = os.path.basename(profile_path)
                 msg = """
 Conan detected a GCC version > 5 but has adjusted the 'compiler.libcxx' setting to
 'libstdc++' for backwards compatibility.
 Your compiler is likely using the new CXX11 ABI by default (libstdc++11).
 
-If you want Conan to use the new ABI, edit the default profile at:
+If you want Conan to use the new ABI, edit the {profile} profile at:
 
-    ~/.conan/profiles/default
+    {profile_path}
 
 adjusting 'compiler.libcxx=libstdc++11'
-"""
+""".format(profile=profile_name, profile_path=profile_path)
                 output.writeln("\n************************* WARNING: GCC OLD ABI COMPATIBILITY "
                                "***********************\n %s\n************************************"
                                "************************************************\n\n\n" % msg,
@@ -233,19 +168,6 @@ adjusting 'compiler.libcxx=libstdc++11'
             result.append(("compiler.libcxx", "libCstd"))
 
 
-def detected_os():
-    result = platform.system()
-    if result == "Darwin":
-        return "Macos"
-    if result.startswith("CYGWIN"):
-        return "Windows"
-    if result.startswith("MINGW32_NT") or result.startswith("MINGW64_NT"):
-        return "Windows"
-    if result.startswith("MSYS_NT"):
-        return "Windows"
-    return result
-
-
 def _detect_os_arch(result, output):
     architectures = {'i386': 'x86',
                      'i686': 'x86',
@@ -256,25 +178,40 @@ def _detect_os_arch(result, output):
     the_os = detected_os()
     result.append(("os", the_os))
     result.append(("os_build", the_os))
-    arch = architectures.get(platform.machine().lower(), platform.machine().lower())
-    if arch.startswith('arm'):
-        for a in ("armv6", "armv7hf", "armv7", "armv8"):
-            if arch.startswith(a):
-                arch = a
-                break
-        else:
-            output.error("Your ARM '%s' architecture is probably not defined in settings.yml\n"
-                         "Please check your conan.conf and settings.yml files" % arch)
-    result.append(("arch", arch))
-    result.append(("arch_build", arch))
+
+    platform_machine = platform.machine().lower()
+    if platform_machine:
+        arch = architectures.get(platform_machine, platform_machine)
+        if arch.startswith('arm'):
+            for a in ("armv6", "armv7hf", "armv7", "armv8"):
+                if arch.startswith(a):
+                    arch = a
+                    break
+            else:
+                output.error("Your ARM '%s' architecture is probably not defined in settings.yml\n"
+                             "Please check your conan.conf and settings.yml files" % arch)
+        elif the_os == 'AIX':
+            processor = platform.processor()
+            if "powerpc" in processor:
+                kernel_bitness = OSInfo().get_aix_conf("KERNEL_BITMODE")
+                if kernel_bitness:
+                    arch = "ppc64" if kernel_bitness == "64" else "ppc32"
+            elif "rs6000" in processor:
+                arch = "ppc32"
+
+        result.append(("arch", arch))
+        result.append(("arch_build", arch))
 
 
-def detect_defaults_settings(output):
+def detect_defaults_settings(output, profile_path):
     """ try to deduce current machine values without any constraints at all
+    :param output: Conan Output instance
+    :param profile_path: Conan profile file path
+    :return: A list with default settings
     """
     result = []
     _detect_os_arch(result, output)
-    _detect_compiler_version(result, output)
+    _detect_compiler_version(result, output, profile_path)
     result.append(("build_type", "Release"))
 
     return result

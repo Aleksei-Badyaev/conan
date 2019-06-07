@@ -13,10 +13,10 @@ from conans.util.files import load
 
 # complex_search: With ORs and not filtering by not restricted settings
 COMPLEX_SEARCH_CAPABILITY = "complex_search"
-API_V2 = "api_v2"
 CHECKSUM_DEPLOY = "checksum_deploy"  # Only when v2
 REVISIONS = "revisions"  # Only when enabled in config, not by default look at server_launcher.py
-SERVER_CAPABILITIES = [COMPLEX_SEARCH_CAPABILITY, API_V2]
+ONLY_V2 = "only_v2"  # Remotes and virtuals from Artifactory returns this capability
+SERVER_CAPABILITIES = [COMPLEX_SEARCH_CAPABILITY, REVISIONS]  # Server is always with revisions
+DEFAULT_REVISION_V1 = "0"
 
-__version__ = '1.7.3.1'
-
+__version__ = '1.16.0'

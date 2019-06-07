@@ -1,10 +1,11 @@
+import getpass
 import os
 import sys
-from conans.client.output import ConanOutput
-from conans.model.username import Username
-from conans.errors import InvalidNameException, ConanException
-import getpass
+
 from six.moves import input as raw_input
+
+from conans.client.output import ConanOutput
+from conans.errors import ConanException
 
 
 class UserIO(object):
@@ -18,7 +19,7 @@ class UserIO(object):
         """
         self._ins = ins
         if not out:
-            out = ConanOutput(sys.stdout)
+            out = ConanOutput(sys.stdout, sys.stderr)
         self.out = out
         self._interactive = True
 
@@ -40,15 +41,12 @@ class UserIO(object):
     def request_login(self, remote_name, username=None):
         """Request user to input their name and password
         :param username If username is specified it only request password"""
-        user_input = ''
-        while not username:
-            try:
-                if self._interactive:
-                    self.out.write("Remote '%s' username: " % remote_name)
-                user_input = self.get_username(remote_name)
-                username = Username(user_input)
-            except InvalidNameException:
-                self.out.error('%s is not a valid username' % user_input)
+
+        if not username:
+            if self._interactive:
+                self.out.write("Remote '%s' username: " % remote_name)
+            username = self.get_username(remote_name)
+
         if self._interactive:
             self.out.write('Please enter a password for "%s" account: ' % username)
         try:

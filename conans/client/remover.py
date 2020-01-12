@@ -3,7 +3,7 @@ import os
 from conans.client.cache.remote_registry import Remote
 from conans.errors import ConanException, PackageNotFoundException, RecipeNotFoundException
 from conans.errors import NotFoundException
-from conans.model.ref import ConanFileReference, PackageReference
+from conans.model.ref import ConanFileReference, PackageReference, check_valid_ref
 from conans.paths import SYSTEM_REQS, rm_conandir
 from conans.search.search import filter_outdated, search_packages, search_recipes
 from conans.util.log import logger
@@ -46,6 +46,7 @@ class DiskRemover(object):
 
     def remove_src(self, package_layout):
         self._remove(package_layout.source(), package_layout.ref, "src folder")
+        self._remove(package_layout.scm_sources(), package_layout.ref, "scm src folder")
 
     def remove_builds(self, package_layout, ids=None):
         if not ids:
@@ -93,7 +94,7 @@ class ConanRemover(object):
     def _remote_remove(self, ref, package_ids, remote):
         assert(isinstance(remote, Remote))
         if package_ids is None:
-            result = self._remote_manager.remove(ref, remote)
+            result = self._remote_manager.remove_recipe(ref, remote)
             return result
         else:
             tmp = self._remote_manager.remove_packages(ref, package_ids, remote)
@@ -143,10 +144,8 @@ class ConanRemover(object):
         if remote_name and (build_ids is not None or src):
             raise ConanException("Remotes don't have 'build' or 'src' folder, just packages")
 
-        try:
-            input_ref = ConanFileReference.loads(pattern)
-        except (ConanException, TypeError):
-            input_ref = None
+        is_reference = check_valid_ref(pattern)
+        input_ref = ConanFileReference.loads(pattern) if is_reference else None
 
         if not input_ref and packages_query is not None:
             raise ConanException("query parameter only allowed with a valid recipe "
@@ -211,7 +210,7 @@ class ConanRemover(object):
                     package_ids = list(packages.keys())
                 if not package_ids:
                     self._user_io.out.warn("No matching packages to remove for %s"
-                                           % ref.full_repr())
+                                           % ref.full_str())
                     continue
 
             if self._ask_permission(ref, src, build_ids, package_ids, force):

@@ -1,7 +1,13 @@
+import json
+import os
 import unittest
+import six
 
+from conans.errors import ConanException
 from conans.test.utils.tools import TestClient
 from conans.util.files import load
+from conans.test.utils.test_files import temp_folder
+from conans.client.tools import environment_append
 
 
 class ConfigTest(unittest.TestCase):
@@ -12,31 +18,32 @@ class ConfigTest(unittest.TestCase):
     def basic_test(self):
         # show the full file
         self.client.run("config get")
-        self.assertIn("default_profile = default", self.client.user_io.out)
-        self.assertIn("path = ./data", self.client.user_io.out)
+        self.assertIn("default_profile = default", self.client.out)
+        self.assertIn("path = ./data", self.client.out)
 
     def storage_test(self):
         # show the full file
         self.client.run("config get storage")
-        self.assertIn("path = ./data", self.client.user_io.out)
+        self.assertIn("path = ./data", self.client.out)
 
         self.client.run("config get storage.path")
-        self.assertIn("./data", self.client.user_io.out)
-        self.assertNotIn("path:", self.client.user_io.out)
+        full_path = os.path.join(self.client.cache_folder, "data")
+        self.assertIn(full_path, self.client.out)
+        self.assertNotIn("path:", self.client.out)
 
     def errors_test(self):
         self.client.run("config get whatever", assert_error=True)
-        self.assertIn("'whatever' is not a section of conan.conf", self.client.user_io.out)
+        self.assertIn("'whatever' is not a section of conan.conf", self.client.out)
         self.client.run("config get whatever.what", assert_error=True)
-        self.assertIn("'whatever' is not a section of conan.conf", self.client.user_io.out)
+        self.assertIn("'whatever' is not a section of conan.conf", self.client.out)
         self.client.run("config get storage.what", assert_error=True)
-        self.assertIn("'what' doesn't exist in [storage]", self.client.user_io.out)
+        self.assertIn("'what' doesn't exist in [storage]", self.client.out)
         self.client.run('config set proxies=https:', assert_error=True)
         self.assertIn("You can't set a full section, please specify a key=value",
-                      self.client.user_io.out)
+                      self.client.out)
 
         self.client.run('config set proxies.http:Value', assert_error=True)
-        self.assertIn("Please specify 'key=value'", self.client.user_io.out)
+        self.assertIn("Please specify 'key=value'", self.client.out)
 
     def define_test(self):
         self.client.run("config set general.fakeos=Linux")
@@ -88,3 +95,29 @@ class ConfigTest(unittest.TestCase):
     def missing_subarguments_test(self):
         self.client.run("config", assert_error=True)
         self.assertIn("ERROR: Exiting with code: 2", self.client.out)
+
+    def test_config_home_default(self):
+        self.client.run("config home")
+        self.assertIn(self.client.cache.cache_folder, self.client.out)
+        self.client.run("config home --json home.json")
+        self._assert_dict_subset({"home": self.client.cache.cache_folder},
+                                 json.loads(self.client.load("home.json")))
+
+    def test_config_home_custom_home_dir(self):
+        cache_folder = os.path.join(temp_folder(), "custom")
+        with environment_append({"CONAN_USER_HOME": cache_folder}):
+            client = TestClient(cache_folder=cache_folder)
+            client.run("config home")
+            self.assertIn(cache_folder, client.out)
+            client.run("config home --json home.json")
+            self._assert_dict_subset({"home": cache_folder}, json.loads(client.load("home.json")))
+
+    def test_config_home_short_home_dir(self):
+        cache_folder = os.path.join(temp_folder(), "custom")
+        with environment_append({"CONAN_USER_HOME_SHORT": cache_folder}):
+            with six.assertRaisesRegex(self, ConanException, "cannot be a subdirectory of the conan cache"):
+                TestClient(cache_folder=cache_folder)
+
+    def _assert_dict_subset(self, expected, actual):
+        actual = {k: v for k, v in actual.items() if k in expected}
+        self.assertDictEqual(expected, actual)

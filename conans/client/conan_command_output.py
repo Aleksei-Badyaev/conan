@@ -30,26 +30,33 @@ class CommandOutputer(object):
     def remote_list(self, remotes, raw):
         for r in remotes:
             if raw:
-                self._output.info("%s %s %s" % (r.name, r.url, r.verify_ssl))
+                disabled_str = " True" if r.disabled else ""
+                self._output.info(
+                    "%s %s %s %s" %
+                    (r.name, r.url, r.verify_ssl, disabled_str))
             else:
-                self._output.info("%s: %s [Verify SSL: %s]" % (r.name, r.url, r.verify_ssl))
+                disabled_str = ", Disabled: True" if r.disabled else ""
+                self._output.info(
+                    "%s: %s [Verify SSL: %s%s]" %
+                    (r.name, r.url, r.verify_ssl, disabled_str))
 
     def remote_ref_list(self, refs):
         for reference, remote_name in refs.items():
             ref = ConanFileReference.loads(reference)
-            self._output.info("%s: %s" % (ref.full_repr(), remote_name))
+            self._output.info("%s: %s" % (ref.full_str(), remote_name))
 
     def remote_pref_list(self, package_references):
         for package_reference, remote_name in package_references.items():
             pref = PackageReference.loads(package_reference)
-            self._output.info("%s: %s" % (pref.full_repr(), remote_name))
+            self._output.info("%s: %s" % (pref.full_str(), remote_name))
 
     def build_order(self, info):
-        msg = ", ".join(str(s) for s in info)
+        groups = [[ref.copy_clear_rev() for ref in group] for group in info]
+        msg = ", ".join(str(s) for s in groups)
         self._output.info(msg)
 
     def json_build_order(self, info, json_output, cwd):
-        data = {"groups": [[str(ref) for ref in group] for group in info]}
+        data = {"groups": [[repr(ref.copy_clear_rev()) for ref in group] for group in info]}
         json_str = json.dumps(data)
         if json_output is True:  # To the output
             self._output.write(json_str)
@@ -108,6 +115,7 @@ class CommandOutputer(object):
         for node in sorted(deps_graph.nodes):
             compact_nodes.setdefault((node.ref, node.package_id), []).append(node)
 
+        build_time_nodes = deps_graph.build_time_nodes()
         remotes = self._cache.registry.load_remotes()
         ret = []
         for (ref, package_id), list_nodes in compact_nodes.items():
@@ -120,7 +128,7 @@ class CommandOutputer(object):
             if node.recipe == RECIPE_CONSUMER:
                 ref = str(conanfile)
             else:
-                item_data["revision"] = str(ref.revision)
+                item_data["revision"] = ref.revision
 
             item_data["reference"] = str(ref)
             item_data["is_ref"] = isinstance(ref, ConanFileReference)
@@ -185,14 +193,15 @@ class CommandOutputer(object):
                     item_data["required_by"] = [d.display_name for d in required]
 
             depends = node.neighbors()
-            requires = [d for d in depends if not d.build_require]
-            build_requires = [d for d in depends if d.build_require]
+            requires = [d for d in depends if d not in build_time_nodes]
+            build_requires = [d for d in depends if d in build_time_nodes]
 
             if requires:
-                item_data["requires"] = [repr(d.ref) for d in requires]
+                item_data["requires"] = [repr(d.ref.copy_clear_rev()) for d in requires]
 
             if build_requires:
-                item_data["build_requires"] = [repr(d.ref) for d in build_requires]
+                item_data["build_requires"] = [repr(d.ref.copy_clear_rev())
+                                               for d in build_requires]
 
             ret.append(item_data)
 

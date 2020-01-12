@@ -4,7 +4,6 @@ import textwrap
 import unittest
 
 from conans.test.utils.tools import TestClient, TestServer
-from conans.util.files import load
 
 
 class ConanInspectTest(unittest.TestCase):
@@ -70,7 +69,7 @@ class Pkg(ConanFile):
         self.assertIn("name: MyPkg", client.out)
         self.assertIn("version: 1.2.3", client.out)
         client.run("inspect . -a=version -a=name --json=file.json")
-        contents = load(os.path.join(client.current_folder, "file.json"))
+        contents = client.load("file.json")
         self.assertIn('"version": "1.2.3"', contents)
         self.assertIn('"name": "MyPkg"', contents)
 
@@ -106,8 +105,8 @@ class Pkg(ConanFile):
         client.run("inspect . -a=revision_mode")
         self.assertIn("revision_mode: hash", client.out)
 
-        client.run("inspect . -a=unexisting_attr", assert_error=True)
-        self.assertIn("ERROR: 'Pkg' object has no attribute 'unexisting_attr'", client.out)
+        client.run("inspect . -a=unexisting_attr")
+        self.assertIn("unexisting_attr:", client.out)
 
     def options_test(self):
         client = TestClient()
@@ -131,7 +130,7 @@ default_options:
 """)
 
         client.run("inspect . -a=version -a=name -a=options -a=default_options --json=file.json")
-        contents = load(os.path.join(client.current_folder, "file.json"))
+        contents = client.load("file.json")
         json_contents = json.loads(contents)
         self.assertEqual(json_contents["version"], None)
         self.assertEqual(json_contents["name"], None)
@@ -378,8 +377,8 @@ class InspectRawTest(unittest.TestCase):
     def test_invalid_field(self):
         client = TestClient()
         client.save({"conanfile.py": self.conanfile})
-        client.run("inspect . --raw=not_exists", assert_error=True)
-        self.assertIn("ERROR: 'Pkg' object has no attribute 'not_exists'", client.out)
+        client.run("inspect . --raw=not_exists")
+        self.assertEqual("", client.out)
 
     def test_private_field(self):
         client = TestClient()

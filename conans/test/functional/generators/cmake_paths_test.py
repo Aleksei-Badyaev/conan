@@ -5,7 +5,6 @@ import unittest
 
 from conans.model.ref import ConanFileReference, PackageReference
 from conans.test.utils.tools import TestClient, NO_SETTINGS_PACKAGE_ID, TurboTestClient, GenConanfile
-from conans.util.files import load
 
 
 class CMakePathsGeneratorTest(unittest.TestCase):
@@ -19,7 +18,7 @@ class CMakePathsGeneratorTest(unittest.TestCase):
         client.run("install {} -g cmake_paths".format(ref2))
         pfolder1 = client.cache.package_layout(pref1.ref).package(pref1).replace("\\", "/")
         pfolder2 = client.cache.package_layout(pref2.ref).package(pref2).replace("\\", "/")
-        contents = load(os.path.join(client.current_folder, "conan_paths.cmake"))
+        contents = client.load("conan_paths.cmake")
         expected = 'set(CONAN_LIB2_ROOT "{pfolder2}")\r\n' \
                    'set(CONAN_LIB1_ROOT "{pfolder1}")\r\n' \
                    'set(CMAKE_MODULE_PATH "{pfolder2}/"\r\n\t\t\t"{pfolder1}/" ' \
@@ -69,15 +68,14 @@ find_package(Hello0 REQUIRED)
         # Without the toolchain we cannot find the package
         build_dir = os.path.join(client.current_folder, "build")
         os.mkdir(build_dir)
-        ret = client.runner("cmake ..", cwd=build_dir)
+        with client.chdir(build_dir):
+            client.run_command("cmake ..", assert_error=True)
         shutil.rmtree(build_dir)
-        self.assertNotEqual(ret, 0)
 
         # With the toolchain everything is ok
         os.mkdir(build_dir)
-        ret = client.runner("cmake .. -DCMAKE_TOOLCHAIN_FILE=../conan_paths.cmake",
-                            cwd=build_dir)
-        self.assertEqual(ret, 0)
+        with client.chdir(build_dir):
+            client.run_command("cmake .. -DCMAKE_TOOLCHAIN_FILE=../conan_paths.cmake")
         self.assertIn("HELLO FROM THE Hello0 FIND PACKAGE!", client.out)
         ref = ConanFileReference.loads("Hello0/0.1@user/channel")
         pref = PackageReference(ref, NO_SETTINGS_PACKAGE_ID)
@@ -99,8 +97,7 @@ find_package(Hello0 REQUIRED)
         client.save(files, clean_first=True)
         os.mkdir(build_dir)
         client.run("install Hello0/0.1@user/channel -g cmake_paths")
-        ret = client.runner("cmake .. ", cwd=build_dir)
-        self.assertEqual(ret, 0)
+        client.run_command("cmake .. ", cwd=build_dir)
         self.assertIn("HELLO FROM THE Hello0 FIND PACKAGE!", client.out)
 
     def find_package_priority_test(self):
@@ -136,7 +133,7 @@ find_package(ZLIB REQUIRED)
         client.save(files, clean_first=True)
         os.mkdir(build_dir)
         client.run("install Zlib/0.1@user/channel -g cmake_paths")
-        ret = client.runner("cmake .. ", cwd=build_dir)
+        ret = client.run_command("cmake .. ", cwd=build_dir)
         self.assertEqual(ret, 0)
         self.assertIn("HELLO FROM THE PACKAGE FIND PACKAGE!", client.out)
 
@@ -210,6 +207,6 @@ find_package(ZLIB REQUIRED)
         client.save(files, clean_first=True)
         os.mkdir(build_dir)
         client.run("install Zlib/0.1@user/channel -g cmake_paths")
-        ret = client.runner("cmake .. ", cwd=build_dir)
+        ret = client.run_command("cmake .. ", cwd=build_dir)
         self.assertEqual(ret, 0)
         self.assertIn("HELLO FROM THE INSTALL FOLDER!", client.out)

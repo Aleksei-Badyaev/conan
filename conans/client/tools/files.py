@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from fnmatch import fnmatch
 
 import six
-from patch import fromfile, fromstring
+from patch_ng import fromfile, fromstring
 
 from conans.client.output import ConanOutput
 from conans.errors import ConanException
@@ -15,6 +15,8 @@ from conans.util.fallbacks import default_output
 from conans.util.files import (_generic_algorithm_sum, load, save)
 
 UNIT_SIZE = 1000.0
+# Library extensions supported by collect_libs
+VALID_LIB_EXTENSIONS = (".so", ".lib", ".a", ".dylib", ".bc")
 
 
 @contextmanager
@@ -148,7 +150,7 @@ def untargz(filename, destination=".", pattern=None):
 
 def check_with_algorithm_sum(algorithm_name, file_path, signature):
     real_signature = _generic_algorithm_sum(file_path, algorithm_name)
-    if real_signature != signature:
+    if real_signature != signature.lower():
         raise ConanException("%s signature failed for '%s' file. \n"
                              " Provided signature: %s  \n"
                              " Computed signature: %s" % (algorithm_name,
@@ -169,15 +171,22 @@ def check_sha256(file_path, signature):
     check_with_algorithm_sum("sha256", file_path, signature)
 
 
-def patch(base_path=None, patch_file=None, patch_string=None, strip=0, output=None):
-    """Applies a diff from file (patch_file)  or string (patch_string)
-    in base_path directory or current dir if None"""
+def patch(base_path=None, patch_file=None, patch_string=None, strip=0, output=None, fuzz=False):
+    """ Applies a diff from file (patch_file)  or string (patch_string)
+        in base_path directory or current dir if None
+    :param base_path: Base path where the patch should be applied.
+    :param patch_file: Patch file that should be applied.
+    :param patch_string: Patch string that should be applied.
+    :param strip: Number of folders to be stripped from the path.
+    :param output: Stream object.
+    :param fuzz: Should accept fuzzy patches.
+    """
 
     class PatchLogHandler(logging.Handler):
         def __init__(self):
             logging.Handler.__init__(self, logging.DEBUG)
             self.output = output or ConanOutput(sys.stdout, sys.stderr, color=True)
-            self.patchname = patch_file if patch_file else "patch"
+            self.patchname = patch_file if patch_file else "patch_ng"
 
         def emit(self, record):
             logstr = self.format(record)
@@ -186,7 +195,7 @@ def patch(base_path=None, patch_file=None, patch_string=None, strip=0, output=No
             else:
                 self.output.info("%s: %s" % (self.patchname, logstr))
 
-    patchlog = logging.getLogger("patch")
+    patchlog = logging.getLogger("patch_ng")
     if patchlog:
         patchlog.handlers = []
         patchlog.addHandler(PatchLogHandler())
@@ -201,36 +210,7 @@ def patch(base_path=None, patch_file=None, patch_string=None, strip=0, output=No
     if not patchset:
         raise ConanException("Failed to parse patch: %s" % (patch_file if patch_file else "string"))
 
-    def decode_clean(path, prefix):
-        path = path.decode("utf-8").replace("\\", "/")
-        if path.startswith(prefix):
-            path = path[2:]
-        return path
-
-    def strip_path(path):
-        tokens = path.split("/")[strip:]
-        path = "/".join(tokens)
-        if base_path:
-            path = os.path.join(base_path, path)
-        return path
-    # account for new and deleted files, upstream dep won't fix them
-    items = []
-    for p in patchset:
-        source = decode_clean(p.source, "a/")
-        target = decode_clean(p.target, "b/")
-        if "dev/null" in source:
-            target = strip_path(target)
-            hunks = [s.decode("utf-8") for s in p.hunks[0].text]
-            new_file = "".join(hunk[1:] for hunk in hunks)
-            save(target, new_file)
-        elif "dev/null" in target:
-            source = strip_path(source)
-            os.unlink(source)
-        else:
-            items.append(p)
-    patchset.items = items
-
-    if not patchset.apply(root=base_path, strip=strip):
+    if not patchset.apply(root=base_path, strip=strip, fuzz=fuzz):
         raise ConanException("Failed to apply patch: %s" % patch_file)
 
 
@@ -243,28 +223,33 @@ def _manage_text_not_found(search, file_path, strict, function_name, output):
         return False
 
 
-def replace_in_file(file_path, search, replace, strict=True, output=None):
+def replace_in_file(file_path, search, replace, strict=True, output=None, encoding=None):
     output = default_output(output, 'conans.client.tools.files.replace_in_file')
 
-    content = load(file_path)
+    encoding_in = encoding or "auto"
+    encoding_out = encoding or "utf-8"
+    content = load(file_path, encoding=encoding_in)
     if -1 == content.find(search):
         _manage_text_not_found(search, file_path, strict, "replace_in_file", output=output)
     content = content.replace(search, replace)
-    content = content.encode("utf-8")
-    with open(file_path, "wb") as handle:
-        handle.write(content)
+    content = content.encode(encoding_out)
+    save(file_path, content, only_if_modified=False, encoding=encoding_out)
 
 
-def replace_path_in_file(file_path, search, replace, strict=True, windows_paths=None, output=None):
+def replace_path_in_file(file_path, search, replace, strict=True, windows_paths=None, output=None,
+                         encoding=None):
     output = default_output(output, 'conans.client.tools.files.replace_path_in_file')
 
     if windows_paths is False or (windows_paths is None and platform.system() != "Windows"):
-        return replace_in_file(file_path, search, replace, strict=strict, output=output)
+        return replace_in_file(file_path, search, replace, strict=strict, output=output,
+                               encoding=encoding)
 
     def normalized_text(text):
         return text.replace("\\", "/").lower()
 
-    content = load(file_path)
+    encoding_in = encoding or "auto"
+    encoding_out = encoding or "utf-8"
+    content = load(file_path, encoding=encoding_in)
     normalized_content = normalized_text(content)
     normalized_search = normalized_text(search)
     index = normalized_content.find(normalized_search)
@@ -277,9 +262,8 @@ def replace_path_in_file(file_path, search, replace, strict=True, windows_paths=
         normalized_content = normalized_text(content)
         index = normalized_content.find(normalized_search)
 
-    content = content.encode("utf-8")
-    with open(file_path, "wb") as handle:
-        handle.write(content)
+    content = content.encode(encoding_out)
+    save(file_path, content, only_if_modified=False, encoding=encoding_out)
 
     return True
 
@@ -321,7 +305,7 @@ def collect_libs(conanfile, folder=None):
         files = os.listdir(lib_folder)
         for f in files:
             name, ext = os.path.splitext(f)
-            if ext in (".so", ".lib", ".a", ".dylib", ".bc"):
+            if ext in VALID_LIB_EXTENSIONS:
                 if ext != ".lib" and name.startswith("lib"):
                     name = name[3:]
                 if name in result:

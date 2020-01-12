@@ -19,6 +19,7 @@ from conans.client.tools import files as tools_files, net as tools_net, oss as t
 from conans.client.tools.env import *  # pylint: disable=unused-import
 from conans.client.tools.pkg_config import *  # pylint: disable=unused-import
 from conans.client.tools.scm import *  # pylint: disable=unused-import
+from conans.client.tools.settings import *  # pylint: disable=unused-import
 from conans.client.tools.apple import *
 from conans.client.tools.android import *
 # Tools form conans.util
@@ -136,6 +137,11 @@ class NullTool(tools_system_pm.NullTool):
 class AptTool(tools_system_pm.AptTool):
     def __init__(self, *args, **kwargs):
         super(AptTool, self).__init__(output=_global_output, *args, **kwargs)
+
+
+class DnfTool(tools_system_pm.DnfTool):
+    def __init__(self, *args, **kwargs):
+        super(DnfTool, self).__init__(output=_global_output, *args, **kwargs)
 
 
 class YumTool(tools_system_pm.YumTool):

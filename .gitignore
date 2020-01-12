@@ -78,6 +78,7 @@ Thumbs.db
 .metadata
 .idea
 .history/
+.vscode/
 
 conan.conf
 *default_package_folder

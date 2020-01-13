@@ -4,7 +4,7 @@
 pip install -e .[dev]
 
 # Run tests.
-# nosetests --where=conans/test --with-xunit
+nosetests --where=conans/test --with-xunit
 
 # Build distro images.
 mv setup.py setup.py.bak

@@ -8,8 +8,11 @@ import six
 from conans.util import progress_bar
 from conans.client.rest import response_to_str
 from conans.errors import AuthenticationException, ConanConnectionError, ConanException, \
-    NotFoundException, ForbiddenException, RequestErrorException
-from conans.util.files import mkdir, sha1sum
+    NotFoundException, ForbiddenException
+from conans.util.files import (
+    save_append, sha256sum, sha1sum, md5sum, exception_message_safe,
+    to_file_bytes, mkdir,
+)
 from conans.util.log import logger
 from conans.util.tracer import log_download
 
@@ -33,14 +36,22 @@ class FileUploader(object):
         headers = copy(headers) or {}
         headers["X-Checksum-Sha1"] = sha1sum(abs_path)
         if dedup:
-            dedup_headers = {"X-Checksum-Deploy": "true"}
+            dedup_headers = {
+                "X-Checksum-Deploy": "true",
+                "X-Checksum-Sha256": sha256sum(abs_path),
+                "X-Checksum-Md5": md5sum(abs_path),
+            }
             if headers:
                 dedup_headers.update(headers)
-            response = self._requester.put(url, data="", verify=self._verify_ssl,
-                                           headers=dedup_headers, auth=auth)
+            response = self.requester.put(
+                url,
+                data="",
+                verify=self._verify_ssl,
+                headers=dedup_headers,
+                auth=auth,
+            )
             if response.status_code == 400:
                 raise RequestErrorException(response_to_str(response))
-
             if response.status_code == 401:
                 raise AuthenticationException(response_to_str(response))
 

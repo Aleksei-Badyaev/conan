@@ -1,7 +1,6 @@
 #!/bin/bash
 # Run tests in Jenkins environment.
 
-/bin/bash clean.sh
 pip install -e .[dev]
 
 # Run tests.

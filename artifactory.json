@@ -1,0 +1,13 @@
+{
+    "files": [
+        {   "pattern": "dist/*.tar.gz",
+            "target": "mousesoft/conan/VERSION/BRANCH/"
+        },
+        {   "pattern": "dist/*.whl",
+            "target": "mousesoft/conan/VERSION/BRANCH/"
+        },
+        {   "pattern": "deb_dist/*.deb",
+            "target": "mousesoft/conan/VERSION/BRANCH/"
+        }
+    ]
+}

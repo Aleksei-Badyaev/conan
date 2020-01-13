@@ -1,20 +1,13 @@
 #!/bin/bash
-# Run tests in Jenkins environment.
-
-pip install -e .[dev]
-
-# Run tests.
-nosetests --where=conans/test --with-xunit
 
 # Build distro images.
 mv setup.py setup.py.bak
 mv setup_deb.py setup.py
+pip install -e .[dev]
 python setup.py --command-packages=stdeb3.command bdist_deb
+rm -f ./*.tar.gz
 mv setup.py setup_deb.py
 mv setup.py.bak setup.py
-rm ./*.tar.gz
-
-python setup.py bdist_wheel
 
 mkdir -p build/
 VERSION=$(python setup.py --version)

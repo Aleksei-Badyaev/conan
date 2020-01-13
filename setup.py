@@ -31,6 +31,8 @@ if platform.system() == "Darwin":
     project_requirements.extend(get_requires("conans/requirements_osx.txt"))
 project_requirements.extend(get_requires("conans/requirements_server.txt"))
 dev_requirements = get_requires("conans/requirements_dev.txt")
+test_requirements = dev_requirements.copy()
+dev_requirements.extend(['stdeb3'])
 # The tests utils are used by conan-package-tools
 exclude_test_packages = ["conans.test.{}*".format(d)
                          for d in os.listdir(os.path.join(here, "conans/test"))

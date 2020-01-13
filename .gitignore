@@ -11,6 +11,7 @@ env/
 build/
 develop-eggs/
 dist/
+deb_dist/
 downloads/
 eggs/
 .eggs/
@@ -23,6 +24,7 @@ venv/
 *.egg-info/
 .installed.cfg
 *.egg
+VERSION
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -78,6 +80,7 @@ Thumbs.db
 .metadata
 .idea
 .history/
+.vscode/
 
 conan.conf
 *default_package_folder

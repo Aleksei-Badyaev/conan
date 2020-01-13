@@ -3,14 +3,11 @@
 
 pip install -e .[dev]
 
-SCRIPT=$(readlink -f $0)
-SCRIPTPATH=$(dirname $SCRIPT)
-export PYTHONPATH="$SCRIPTPATH/src:$PYTHONPATH"
-
 # Run tests.
 nosetests --where=conans/test --with-xunit
 
 # Build distro images.
+/bin/bash clean.sh
 python setup.py --command-packages=stdeb3.command bdist_deb
 rm ./*.tar.gz
 python setup.py bdist_wheel

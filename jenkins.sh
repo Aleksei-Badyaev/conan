@@ -21,8 +21,11 @@ mv setup.py setup_deb.py
 mv setup.py.bak setup.py
 python setup.py bdist_wheel
 
-mkdir -p build/
 echo "${VERSION}" > ./VERSION
+if [[ -z "$BRANCH" ]]; then
+    BRANCH="$(git rev-parse --abbrev-ref HEAD | sed -e 's%/%-%g')"
+fi
+mkdir -p build
 sed\
  -e "s/VERSION/${VERSION}/g"\
  -e "s/BRANCH/${BRANCH}/g"\

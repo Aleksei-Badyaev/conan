@@ -35,18 +35,23 @@ test_requirements = dev_requirements.copy()
 dev_requirements.extend(project_requirements)
 dev_requirements.extend(['stdeb3'])
 # The tests utils are used by conan-package-tools
-exclude_test_packages = ["conans.test.{}*".format(d)
-                         for d in os.listdir(os.path.join(here, "conans/test"))
-                         if os.path.isdir(os.path.join(here, "conans/test", d)) and d != "utils"]
+exclude_test_packages = [
+    "conans.test.{}*".format(d)
+    for d in os.listdir(os.path.join(here, "conans/test"))
+    if os.path.isdir(os.path.join(here, "conans/test", d)) and d != "utils"
+]
 
 
 def load_version():
     '''Loads a file content'''
-    filename = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                            "conans", "__init__.py"))
+    filename = os.path.abspath(os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), "conans", "__init__.py"))
     with open(filename, "rt") as version_file:
         conan_init = version_file.read()
-        version = re.search("__version__ = '([0-9a-z.-]+)'", conan_init).group(1)
+        version = re.search(
+            "__version__ = '([0-9a-z.-]+)'",
+            conan_init,
+        ).group(1)
         return version
 
 

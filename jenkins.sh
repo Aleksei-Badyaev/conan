@@ -25,5 +25,5 @@ mkdir -p build/
 echo "${VERSION}" > ./VERSION
 sed\
  -e "s/VERSION/${VERSION}/g"\
- -e "s%BRANCH%$(git rev-parse --abbrev-ref HEAD | sed -e 's%/%-%g')%g"\
+ -e "s/BRANCH/${BRANCH}/g"\
   artifactory.json > build/artifactory.json

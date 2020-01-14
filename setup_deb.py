@@ -31,6 +31,9 @@ if platform.system() == "Darwin":
     project_requirements.extend(get_requires("conans/requirements_osx.txt"))
 project_requirements.extend(get_requires("conans/requirements_server.txt"))
 dev_requirements = get_requires("conans/requirements_dev.txt")
+test_requirements = dev_requirements.copy()
+dev_requirements.extend(project_requirements)
+dev_requirements.extend(['stdeb3'])
 # The tests utils are used by conan-package-tools
 exclude_test_packages = [
     "conans.test.{}*".format(d)
@@ -108,16 +111,16 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=project_requirements,
+    # install_requires=project_requirements,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    extras_require={
-        'dev': dev_requirements,
-        'test': dev_requirements,
-    },
+    # extras_require={
+    #     'dev': dev_requirements,
+    #     'test': dev_requirements,
+    # },
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these

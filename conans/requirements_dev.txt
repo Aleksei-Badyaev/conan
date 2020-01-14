@@ -5,3 +5,4 @@ WebTest>=2.0.18, <2.1.0
 coverage==4.2
 codecov
 bottle
+patch-ng>=1.17.2
